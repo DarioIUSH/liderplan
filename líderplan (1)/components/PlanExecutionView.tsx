@@ -2,8 +2,12 @@ import React, { useState } from 'react';
 import { Plan, Activity, ActivityStatus, ActivityPriority, Comment, Evidence } from '../types';
 import { Button } from './Button';
 import { ConfirmDialog } from './ConfirmDialog';
-import { ChevronLeft, Edit2, Upload, MessageSquare, X, FileText, Trash2, Plus } from 'lucide-react';
+import { ChevronLeft, Edit2, Upload, MessageSquare, X, FileText, Trash2, Plus, Calendar } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { parse, format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 interface PlanExecutionViewProps {
   plan: Plan;
@@ -798,21 +802,51 @@ export const PlanExecutionView: React.FC<PlanExecutionViewProps> = ({ plan, onBa
                     <div className="grid grid-cols-2 gap-6">
                         <div>
                             <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide mb-2">Fecha de Inicio</label>
-                            <input 
-                                type="date"
-                                value={newActivityData.startDate}
-                                onChange={(e) => setNewActivityData({...newActivityData, startDate: e.target.value})}
+                            <div className="relative">
+                              <DatePicker
+                                selected={newActivityData.startDate ? parse(newActivityData.startDate, 'yyyy-MM-dd', new Date()) : null}
+                                onChange={(date) => {
+                                  if (date) {
+                                    setNewActivityData({
+                                      ...newActivityData,
+                                      startDate: format(date, 'yyyy-MM-dd')
+                                    });
+                                  }
+                                }}
+                                dateFormat="dd/MM/yyyy"
+                                locale={es}
+                                minDate={new Date(new Date().getFullYear() - 1, 0, 1)}
+                                maxDate={new Date(new Date().getFullYear() + 5, 11, 31)}
+                                calendarClassName="react-datepicker-calendar"
                                 className="w-full px-4 py-3 rounded-lg border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm text-gray-600"
-                            />
+                                placeholderText="Selecciona fecha..."
+                                wrapperClassName="w-full"
+                              />
+                            </div>
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide mb-2">Fecha de Fin</label>
-                            <input 
-                                type="date"
-                                value={newActivityData.endDate}
-                                onChange={(e) => setNewActivityData({...newActivityData, endDate: e.target.value})}
+                            <div className="relative">
+                              <DatePicker
+                                selected={newActivityData.endDate ? parse(newActivityData.endDate, 'yyyy-MM-dd', new Date()) : null}
+                                onChange={(date) => {
+                                  if (date) {
+                                    setNewActivityData({
+                                      ...newActivityData,
+                                      endDate: format(date, 'yyyy-MM-dd')
+                                    });
+                                  }
+                                }}
+                                dateFormat="dd/MM/yyyy"
+                                locale={es}
+                                minDate={new Date(new Date().getFullYear() - 1, 0, 1)}
+                                maxDate={new Date(new Date().getFullYear() + 5, 11, 31)}
+                                calendarClassName="react-datepicker-calendar"
                                 className="w-full px-4 py-3 rounded-lg border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm text-gray-600"
-                            />
+                                placeholderText="Selecciona fecha..."
+                                wrapperClassName="w-full"
+                              />
+                            </div>
                         </div>
                     </div>
 
