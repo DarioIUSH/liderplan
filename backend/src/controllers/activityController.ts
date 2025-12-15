@@ -1,16 +1,19 @@
 import { Request, Response } from 'express';
 import { Activity } from '../models/Activity.js';
 import { Plan } from '../models/Plan.js';
+import { User } from '../models/User.js';
 
 export const createActivity = async (req: Request, res: Response) => {
   try {
-    const { planId, description, responsible, area, startDate, endDate, resources, priority } =
+    const { planId, description, responsible, responsibles, area, startDate, endDate, resources, priority } =
       req.body;
 
     console.log('═══════════════════════════════════════');
     console.log('📝 CREAR ACTIVIDAD - BACKEND RECIBIDO:');
     console.log('───────────────────────────────────────');
     console.log(`   Descripción: ${description}`);
+    console.log(`   Responsable: ${responsible}`);
+    console.log(`   Responsables (IDs): ${JSON.stringify(responsibles)}`);
     console.log(`   Inicio (raw): "${startDate}" (type: ${typeof startDate})`);
     console.log(`   Fin (raw): "${endDate}" (type: ${typeof endDate})`);
     console.log('───────────────────────────────────────');
@@ -30,6 +33,7 @@ export const createActivity = async (req: Request, res: Response) => {
       planId,
       description,
       responsible,
+      responsibles: responsibles || [],
       area,
       startDate: startDateTrimmed,
       endDate: endDateTrimmed,
@@ -42,6 +46,9 @@ export const createActivity = async (req: Request, res: Response) => {
     });
 
     await activity.save();
+
+    // Populate responsibles para retornar datos completos
+    await activity.populate('responsibles', 'fullName email _id');
 
     console.log(`✅ GUARDADO EN BD:`);
     console.log(`   Inicio BD: "${activity.startDate}"`);

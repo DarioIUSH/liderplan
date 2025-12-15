@@ -9,8 +9,14 @@ const activitySchema = new mongoose.Schema<IActivity>(
     },
     responsible: {
       type: String,
-      required: true,
+      required: false, // Mantener para compatibilidad backwards
     },
+    responsibles: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      }
+    ],
     area: {
       type: String,
       required: true,

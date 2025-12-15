@@ -28,7 +28,8 @@ export interface Activity {
   id: string;          // UUID para uso en frontend
   _id?: string;        // MongoDB ID para operaciones en backend
   description: string; // ACTIVIDADES
-  responsible: string; // RESPONSABLE
+  responsible?: string; // RESPONSABLE (legacy)
+  responsibles?: any[]; // RESPONSABLES (array de usuarios)
   area: string;        // ÁREA (New field)
   startDate: string;   // INICIO (dd/mm/aaaa)
   endDate: string;     // FIN (dd/mm/aaaa)

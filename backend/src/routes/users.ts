@@ -21,6 +21,7 @@ const router = Router();
 // Rutas protegidas (requieren autenticación)
 router.get('/me', authMiddleware, getCurrentUser);
 router.put('/change-password', authMiddleware, changePassword);
+router.get('/available', authMiddleware, getAllUsers); // Obtener usuarios para asignar como responsables
 
 // Rutas solo para ADMIN
 router.post('/create', authMiddleware, roleMiddleware(['ADMIN']), createUserWithRole);

@@ -50,6 +50,11 @@ export const PlanExecutionView: React.FC<PlanExecutionViewProps> = ({ plan, onBa
     isDangerous: false
   });
   
+  // State for Available Users
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [isResponsibleDropdownOpen, setIsResponsibleDropdownOpen] = useState(false);
+  
   // State for Managing Existing Activity
   const [tempStatus, setTempStatus] = useState<ActivityStatus>(ActivityStatus.NOT_STARTED);
   const [tempProgress, setTempProgress] = useState<number>(0);
@@ -61,11 +66,87 @@ export const PlanExecutionView: React.FC<PlanExecutionViewProps> = ({ plan, onBa
   const [newActivityData, setNewActivityData] = useState({
     description: '',
     responsible: '',
+    responsibles: [] as string[],
     area: '',
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
     resources: ''
   });
+
+  // Cargar usuarios disponibles cuando el modal de nueva actividad se abre
+  const handleOpenAddActivityModal = () => {
+    console.log('🔵 Abriendo modal de nueva actividad, intentando cargar usuarios...');
+    setIsAddingActivity(true);
+    loadUsers();
+  };
+
+  // Función para cargar usuarios
+  const loadUsers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      console.log('🔑 Token disponible:', !!token);
+      
+      if (!token) {
+        console.warn('⚠️ No hay token en localStorage');
+        showError('Error: Token no encontrado');
+        return;
+      }
+
+      setLoadingUsers(true);
+      console.log('📡 Cargando usuarios desde /api/users/available...');
+      
+      const response = await fetch('http://localhost:5000/api/users/available', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('📊 Response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📦 Respuesta recibida:', data);
+        
+        // Si es un array directamente o está en una propiedad
+        const users = Array.isArray(data) ? data : data.users || [];
+        console.log('✅ Usuarios procesados:', users.length, users);
+        setAvailableUsers(users);
+        
+        if (users.length === 0) {
+          console.warn('⚠️ No hay usuarios disponibles en la base de datos');
+          showInfo('No hay usuarios disponibles para asignar');
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Error response:', response.status, errorText);
+        showError(`Error al cargar usuarios: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando usuarios:', error);
+      showError('Error al conectar con el servidor');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Cargar usuarios cuando el componente monta
+  React.useEffect(() => {
+    console.log('🎬 PlanExecutionView montado');
+    loadUsers();
+  }, [showError, showInfo]);
+
+  // Cerrar dropdown cuando se presiona Escape
+  React.useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsResponsibleDropdownOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
 
   // --- Manage Existing Activity Logic ---
 
@@ -332,11 +413,15 @@ export const PlanExecutionView: React.FC<PlanExecutionViewProps> = ({ plan, onBa
     setNewActivityData({
         description: '',
         responsible: '',
+        responsibles: [],
         area: '',
         startDate: todayString,
         endDate: todayString,
         resources: ''
     });
+    
+    // Cargar usuarios cuando se abre el modal
+    loadUsers();
     setIsAddingActivity(true);
     console.log('📅 Modal abierto - Fecha inicial:', todayString);
   };
@@ -403,6 +488,7 @@ export const PlanExecutionView: React.FC<PlanExecutionViewProps> = ({ plan, onBa
         body: JSON.stringify({
           ...activityWithoutId,
           planId: plan.id,
+          responsibles: newActivityData.responsibles,
           // Enviar fechas como strings YYYY-MM-DD sin conversión
           startDate: newActivityData.startDate,
           endDate: newActivityData.endDate
@@ -423,7 +509,8 @@ export const PlanExecutionView: React.FC<PlanExecutionViewProps> = ({ plan, onBa
       // Crear la actividad con el ID de MongoDB
       const activityWithMongoId: Activity = {
         ...newActivity,
-        _id: savedActivity.activity?._id || savedActivity._id
+        _id: savedActivity.activity?._id || savedActivity._id,
+        responsibles: savedActivity.activity?.responsibles || savedActivity.responsibles || newActivityData.responsibles
       };
 
       // Actualizar el plan en memoria
@@ -517,7 +604,26 @@ export const PlanExecutionView: React.FC<PlanExecutionViewProps> = ({ plan, onBa
                        )}
                      </div>
                    </td>
-                   <td className="px-3 py-3 text-xs text-gray-700 border-r border-gray-200 align-top">{act.responsible}</td>
+                   <td className="px-3 py-3 text-xs text-gray-700 border-r border-gray-200 align-top">
+                     <div className="space-y-1">
+                       {act.responsibles && Array.isArray(act.responsibles) && act.responsibles.length > 0 ? (
+                         act.responsibles.map((resp: any, idx: number) => (
+                           <div key={idx} className="inline-block">
+                             {typeof resp === 'string' ? (
+                               <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">{resp}</span>
+                             ) : (
+                               <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">{resp.fullName || resp.name || 'Usuario'}</span>
+                             )}
+                             {idx < (act.responsibles?.length || 0) - 1 && <br />}
+                           </div>
+                         ))
+                       ) : act.responsible ? (
+                         <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">{act.responsible}</span>
+                       ) : (
+                         <span className="text-gray-400 italic">Sin asignar</span>
+                       )}
+                     </div>
+                   </td>
                    <td className="px-3 py-3 text-xs text-gray-600 border-r border-gray-200 align-top">{act.area || '-'}</td>
                    <td className="px-3 py-3 text-xs text-gray-500 border-r border-gray-200 whitespace-nowrap align-top">
                       <div>Del: {formatDateString(act.startDate)}</div>
@@ -555,80 +661,176 @@ export const PlanExecutionView: React.FC<PlanExecutionViewProps> = ({ plan, onBa
       {/* Modal for Adding New Activity */}
       {isAddingActivity && (
          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
-                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                    <h3 className="text-lg font-bold text-gray-900">Agregar Nueva Actividad</h3>
-                    <button onClick={() => setIsAddingActivity(false)} className="text-gray-400 hover:text-gray-600">
-                        <X className="w-5 h-5" />
+            <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="px-8 py-5 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900">Agregar Nueva Actividad</h3>
+                      <p className="text-sm text-gray-500 mt-1">Completa los datos de la actividad que deseas crear</p>
+                    </div>
+                    <button onClick={() => setIsAddingActivity(false)} className="text-gray-400 hover:text-gray-600 transition">
+                        <X className="w-6 h-6" />
                     </button>
                 </div>
-                <div className="p-6 overflow-y-auto space-y-4">
+                <div className="p-8 overflow-y-auto space-y-6">
+                    {/* Descripción de la Actividad */}
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Actividad *</label>
+                        <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide mb-2">Descripción de la Actividad *</label>
                         <textarea 
                             value={newActivityData.description}
                             onChange={(e) => setNewActivityData({...newActivityData, description: e.target.value})}
-                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
-                            rows={3}
-                            placeholder="Descripción de la actividad..."
+                            className="w-full px-4 py-3 rounded-lg border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm"
+                            rows={4}
+                            placeholder="Describe detalladamente la actividad a realizar..."
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Responsable</label>
-                            <input 
-                                type="text"
-                                value={newActivityData.responsible}
-                                onChange={(e) => setNewActivityData({...newActivityData, responsible: e.target.value})}
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
-                            />
+
+                    {/* Responsables y Área */}
+                    <div className="grid grid-cols-3 gap-6">
+                        {/* Responsables */}
+                        <div className="col-span-2">
+                            <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide mb-2">Responsables</label>
+                            <div className="relative">
+                              {/* Input field */}
+                              <button
+                                type="button"
+                                onClick={() => setIsResponsibleDropdownOpen(!isResponsibleDropdownOpen)}
+                                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg shadow-sm text-sm text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                              >
+                                <span className="text-gray-600">
+                                  {newActivityData.responsibles.length === 0 
+                                    ? 'Selecciona los responsables de esta actividad...' 
+                                    : `${newActivityData.responsibles.length} responsable${newActivityData.responsibles.length > 1 ? 's' : ''} seleccionado${newActivityData.responsibles.length > 1 ? 's' : ''}`}
+                                </span>
+                                <svg className={`w-5 h-5 transition-transform text-gray-400 ${isResponsibleDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                </svg>
+                              </button>
+
+                              {/* Dropdown menu */}
+                              {isResponsibleDropdownOpen && (
+                                <div className="absolute z-20 w-full mt-2 bg-white border border-gray-300 rounded-lg shadow-xl">
+                                  <div className="max-h-80 overflow-y-auto">
+                                    {loadingUsers ? (
+                                      <div className="px-4 py-6 text-sm text-gray-500 text-center">
+                                        <div className="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+                                        <p className="mt-2">Cargando usuarios...</p>
+                                      </div>
+                                    ) : availableUsers.length > 0 ? (
+                                      availableUsers.map((user: any) => (
+                                        <label
+                                          key={user._id}
+                                          className="flex items-center px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0 transition"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={newActivityData.responsibles.includes(user._id)}
+                                            onChange={(e) => {
+                                              if (e.target.checked) {
+                                                setNewActivityData({
+                                                  ...newActivityData,
+                                                  responsibles: [...newActivityData.responsibles, user._id]
+                                                });
+                                              } else {
+                                                setNewActivityData({
+                                                  ...newActivityData,
+                                                  responsibles: newActivityData.responsibles.filter(id => id !== user._id)
+                                                });
+                                              }
+                                            }}
+                                            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                                          />
+                                          <span className="ml-3 text-sm text-gray-700 font-medium">{user.fullName}</span>
+                                        </label>
+                                      ))
+                                    ) : (
+                                      <div className="px-4 py-6 text-sm text-gray-500 text-center">No hay usuarios disponibles</div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Selected chips */}
+                              {newActivityData.responsibles.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                  {newActivityData.responsibles.map((userId: string) => {
+                                    const user = availableUsers.find(u => u._id === userId);
+                                    return user ? (
+                                      <div
+                                        key={userId}
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-100 to-blue-50 text-blue-700 rounded-full text-sm font-medium shadow-sm hover:shadow-md transition"
+                                      >
+                                        <span>✓ {user.fullName}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setNewActivityData({
+                                              ...newActivityData,
+                                              responsibles: newActivityData.responsibles.filter(id => id !== userId)
+                                            });
+                                          }}
+                                          className="ml-1 text-blue-500 hover:text-blue-700 font-bold text-lg leading-none"
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    ) : null;
+                                  })}
+                                </div>
+                              )}
+                            </div>
                         </div>
+
+                        {/* Área */}
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Área</label>
+                            <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide mb-2">Área</label>
                             <input 
                                 list="area-options-exec"
                                 type="text"
                                 value={newActivityData.area}
                                 onChange={(e) => setNewActivityData({...newActivityData, area: e.target.value})}
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
-                                placeholder="Buscar área..."
+                                className="w-full px-4 py-3 rounded-lg border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm"
+                                placeholder="Selecciona un área..."
                             />
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+
+                    {/* Fechas */}
+                    <div className="grid grid-cols-2 gap-6">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha Inicio</label>
+                            <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide mb-2">Fecha de Inicio</label>
                             <input 
                                 type="date"
                                 value={newActivityData.startDate}
                                 onChange={(e) => setNewActivityData({...newActivityData, startDate: e.target.value})}
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm text-gray-600"
+                                className="w-full px-4 py-3 rounded-lg border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm text-gray-600"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha Fin</label>
+                            <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide mb-2">Fecha de Fin</label>
                             <input 
                                 type="date"
                                 value={newActivityData.endDate}
                                 onChange={(e) => setNewActivityData({...newActivityData, endDate: e.target.value})}
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm text-gray-600"
+                                className="w-full px-4 py-3 rounded-lg border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm text-gray-600"
                             />
                         </div>
                     </div>
+
+                    {/* Recursos */}
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Recursos</label>
+                        <label className="block text-sm font-bold text-gray-700 uppercase tracking-wide mb-2">Recursos Necesarios</label>
                         <textarea 
                             value={newActivityData.resources}
                             onChange={(e) => setNewActivityData({...newActivityData, resources: e.target.value})}
-                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
-                            rows={2}
+                            className="w-full px-4 py-3 rounded-lg border border-gray-300 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 text-sm"
+                            rows={3}
                             placeholder="Recursos necesarios..."
                         />
                     </div>
                 </div>
-                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
-                    <Button variant="ghost" onClick={() => setIsAddingActivity(false)}>Cancelar</Button>
-                    <Button onClick={handleSaveNewActivity} variant="primary">Guardar Actividad</Button>
+                <div className="px-8 py-5 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+                    <Button variant="ghost" onClick={() => setIsAddingActivity(false)} className="px-6 py-2 text-base">Cancelar</Button>
+                    <Button onClick={handleSaveNewActivity} variant="primary" className="px-8 py-2 text-base">Guardar Actividad</Button>
                 </div>
             </div>
          </div>

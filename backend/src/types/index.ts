@@ -39,7 +39,8 @@ export interface IEvidence {
 export interface IActivity {
   _id?: string;
   description: string;
-  responsible: string;
+  responsible?: string; // Opcional para backwards compatibility
+  responsibles?: (string | IUser)[]; // Referencias a usuarios
   area: string;
   startDate: string;
   endDate: string;
